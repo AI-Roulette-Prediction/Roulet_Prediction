@@ -1,8 +1,9 @@
 import pandas as pd
+from utils.utils import file_path
 
 class ProductDataProcessor:
     def __init__(self):
-        self.file_path = "data/Example.xlsx"
+        self.file_path = file_path
         self.df = pd.read_excel(self.file_path)
     
     def add_features(self, features=None):
@@ -30,6 +31,7 @@ class ProductDataProcessor:
         
         # Save the updated DataFrame back to the Excel file
         self.df.to_excel(self.file_path, index=False)
+        
     
     def get_product_data(self, start=None, end=None):
         # If start and end are not provided, use the entire DataFrame

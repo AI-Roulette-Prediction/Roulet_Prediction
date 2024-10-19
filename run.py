@@ -7,7 +7,7 @@ def add_product_features(features):
     # Call the add_features method in the data processor class
     data_processor.add_features(features)
 
-def predict_values(start_number=0, end_number=None):
+def predict_values(start_number=0,initial_patern_length = 5,end_pattern_length = None,end_number=None):
     # Generate product data based on the range
     series, dozen, parity, color, column, group = data_processor.get_product_data(start=start_number, end=end_number)
     
@@ -25,7 +25,7 @@ def predict_values(start_number=0, end_number=None):
     }
     
     for _, data in categories.items():
-        calculator = PatternProbabilityCalculator(data)
+        calculator = PatternProbabilityCalculator(data ,initial_patern_length, end_pattern_length)
         _, _, _ = calculator.calculate_next_probabilities()  
         _, highest_prob_element, _ = calculator.calculate_average_probabilities()
         
@@ -38,7 +38,7 @@ def predict_values(start_number=0, end_number=None):
     return predicted_values_str
 
 
-def predict_continuous_values(start_number=0, end_number=None, num_predictions=5):
+def predict_continuous_values(start_number=0, end_number=None, num_predictions=5,initial_patern_length = 5,end_pattern_length = None):
     predictions = []
     correct_counts = [0] * 6  # Assuming there are 6 features to predict
     actual_values_list = []  # List to store actual values for each prediction
@@ -72,7 +72,7 @@ def predict_continuous_values(start_number=0, end_number=None, num_predictions=5
         
         # Predict for each category using only original data
         for _, category_data in categories.items():
-            calculator = PatternProbabilityCalculator(category_data)
+            calculator = PatternProbabilityCalculator(category_data,initial_patern_length, end_pattern_length)
             _, _, _ = calculator.calculate_next_probabilities()
             _, highest_prob_element, _ = calculator.calculate_average_probabilities()
             current_prediction.append(highest_prob_element)
@@ -93,7 +93,7 @@ def predict_continuous_values(start_number=0, end_number=None, num_predictions=5
         
         # Increment current_end for next iteration
         current_end += 1
-    
+        
     # Calculate accuracy for each feature
     accuracies = [(count / num_predictions) * 100 for count in correct_counts]
     

@@ -1,10 +1,13 @@
 import streamlit as st
+import pandas as pd
 from run import predict_values, add_product_features, predict_continuous_values
 from src.PossibleNumber import get_predicted_number
 from src.PositionAnalyzer import PatternPositionAnalyzer
 from src.DataProcessor import ProductDataProcessor
 from src.calculator import PatternProbabilityCalculator
 from src.Predict_features import predict_features_from_number
+from src.Strategy2 import find_next_numbers_and_features, standardize_values, calculate_feature_percentages , get_last_n_numbers_and_frequent_features
+from utils.utils import file_path
 import logging
 
 # Set up logging
@@ -101,7 +104,7 @@ def page_1():
     # Initialize session state for all features if they don't exist
     if 'number_input' not in st.session_state:
         st.session_state.number_input = ""
-    for feature in ['dozen', 'color', 'series', 'column', 'parity', 'group']:
+    for feature in ['Dozen', 'color', 'series', 'Column', 'parity', 'Group']:
         if feature not in st.session_state:
             st.session_state[feature] = ""
 
@@ -129,7 +132,7 @@ def page_1():
                         st.session_state[feature] = value
                 else:
                     # Clear features if number is invalid
-                    for feature in ['dozen', 'color', 'series', 'column', 'parity', 'group']:
+                    for feature in ['Dozen', 'color', 'series', 'Column', 'parity', 'Group']:
                         st.session_state[feature] = ""
 
             col1, col2 = st.columns(2)
@@ -137,7 +140,7 @@ def page_1():
                 dozen = st.selectbox("Dozen", 
                                     options=["", "D1", "D2", "D3"],
                                     key="dozen_selector",
-                                    index=["", "D1", "D2", "D3"].index(st.session_state.dozen) if st.session_state.dozen else 0)
+                                    index=["", "D1", "D2", "D3"].index(st.session_state.Dozen) if st.session_state.Dozen else 0)
                 color = st.selectbox("Color", 
                                     options=["", "RED", "BLACK", "GREEN"],
                                     key="color_selector",
@@ -151,7 +154,7 @@ def page_1():
                 column = st.selectbox("Column", 
                                      options=["", "C1", "C2", "C3"],
                                      key="column_selector",
-                                     index=["", "C1", "C2", "C3"].index(st.session_state.column) if st.session_state.column else 0)
+                                     index=["", "C1", "C2", "C3"].index(st.session_state.Column) if st.session_state.Column else 0)
                 parity = st.selectbox("Parity", 
                                      options=["", "ODD", "EVEN"],
                                      key="parity_selector",
@@ -159,7 +162,7 @@ def page_1():
                 group = st.selectbox("Group", 
                                     options=["", "G1", "G2"],
                                     key="group_selector",
-                                    index=["", "G1", "G2"].index(st.session_state.group) if st.session_state.group else 0)
+                                    index=["", "G1", "G2"].index(st.session_state.Group) if st.session_state.Group else 0)
 
         # Update session state based on manual selections
         st.session_state.dozen = dozen
@@ -202,7 +205,7 @@ def page_1():
     # Check if the "Predict Next Values" button has been clicked
     if st.button("🔍 Predict Next Values", key="predict_next_values_button_page1"):
         with st.spinner("Calculating predictions..."):
-            predicted_values = predict_values(start_number, end_number or None)
+            predicted_values = predict_values(start_number,initial_pattern_length,end_pattern_length or None, end_number or None)
             st.session_state['predicted_values'] = predicted_values
             st.session_state['predict_next_clicked'] = True  # Set flag for button click
 
@@ -237,7 +240,6 @@ def page_1():
                             predictions["Parity"], 
                             predictions["Color"],
                             predictions["Dozen"],
-                            predictions["Group"]
                         )
                         if predicted_number == "Number not found":
                             st.warning("⚠️ No numbers found matching all the criteria.")
@@ -266,15 +268,19 @@ def page_2():
     
     with col1:
         start_number = st.number_input("Start Number", min_value=0, value=0)
+        initial_pattern_length = st.number_input("Initial Pattern Length", min_value=5, value=5)
+
     with col2:
         end_number = st.number_input("End Number", min_value=100, value=100, step=100)
+        end_pattern_length = st.number_input("End Pattern Length", min_value=0, value=0)
+
     with col3:
         num_predictions = st.number_input("Number of Predictions", min_value=1, value=1)
 
     if st.button("🔍 Analyze Accuracy", key="analyze_accuracy_button_page2"):
         with st.spinner("Running back-testing analysis..."):
-            predictions, counts, actual_values, accuracy, overall_accuracy = predict_continuous_values(
-                start_number, end_number, num_predictions)
+            _, counts, _, accuracy, overall_accuracy = predict_continuous_values(
+                start_number, end_number, num_predictions, initial_pattern_length, end_pattern_length)
             
         st.markdown("### 📊 Accuracy Results")
         
@@ -300,8 +306,12 @@ def page_3():
     
     with col1:
         start_number = st.number_input("Start Number", min_value=0, value=0)
+        initial_pattern_length = st.number_input("Initial Pattern Length", min_value=5, value=5)
+
     with col2:
         end_number = st.number_input("End Number", min_value=100, value=100, step=100)
+        end_pattern_length = st.number_input("End Pattern Length", min_value=0, value=0)
+
     with col3:
         max_range = st.number_input("Max Range", min_value=500, value=500, step=100)
 
@@ -309,7 +319,7 @@ def page_3():
         with st.spinner("Analyzing pattern positions..."):
             series, _, _, _, _, _ = data_processor.get_product_data(start=start_number, end=end_number)
             
-            calculator = PatternProbabilityCalculator(series)
+            calculator = PatternProbabilityCalculator(series , initial_patern_length=initial_pattern_length, last_pattern_length=end_pattern_length)
             _, _, _ = calculator.calculate_next_probabilities()
             pattern_positions = calculator.find_pattern_positions()
             
@@ -324,7 +334,96 @@ def page_3():
             st.success(f"📊 Generated {len(figs)} pattern analysis charts")
             for fig in figs:
                 st.plotly_chart(fig, use_container_width=True)
+                
+                
 
+def page_4():
+    st.title("🔍 Predicting Probability")
+
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        add_number = st.number_input("Add Number", min_value=0, max_value=36, value=0)
+    with col2:
+        lookback = st.number_input("Lookback", min_value=1, value=100)
+
+    if st.button("📊 Analyze Features", key="analyze_features_button"):
+        with st.spinner("Analyzing features..."):
+            # Predict features from the number
+            predicted_features = predict_features_from_number(add_number)
+            
+            # Add features to the DataFrame
+            data_processor.add_features({'Number': add_number, **predicted_features})
+            
+            df = pd.read_excel(file_path)
+            
+            # Find next numbers and features
+            last_number, next_numbers_and_features = find_next_numbers_and_features(df, lookback)
+            
+            # Standardize values
+            next_numbers_df = pd.DataFrame(next_numbers_and_features)
+            next_numbers_df = standardize_values(next_numbers_df)
+            
+            # Calculate probabilities
+            feature_percentages = calculate_feature_percentages(next_numbers_df)
+            
+            # Get the last 5 numbers and their features, and the most frequent feature values
+            last_5_numbers, most_frequent_features = get_last_n_numbers_and_frequent_features(df, n=5)
+
+            # Display results
+            st.markdown("### 📊 Analysis Results")
+            
+            # Display last number
+            st.metric("Last Number", last_number)
+            
+            # # Display predicted features in an expandable section
+            # with st.expander("🎯 Predicted Features for Added Number"):
+            #     col1, col2 = st.columns(2)
+            #     for i, (feature, value) in enumerate(predicted_features.items()):
+            #         with col1 if i % 2 == 0 else col2:
+            #             st.metric(feature.capitalize(), value)
+
+            # Display last 5 numbers and their most frequent features
+
+            
+            # Display next numbers and their features in a table
+            st.markdown("### 🔮 Next Numbers and Features")
+            
+            # Reorder columns for better readability
+            columns_order = ['Next Number', 'Dozen', 'Column', 'parity', 'color', 'series', 'Group']
+            next_numbers_df = next_numbers_df.reindex(columns=columns_order)
+            
+            # Display the dataframe
+            st.dataframe(next_numbers_df)
+            
+            with st.expander("📜 Last 5 Numbers and Most Frequent Features"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("#### Last 5 Numbers")
+                    for index, row in last_5_numbers.iterrows():
+                        st.write(f"{row['Number']}, {row['Dozen']},  {row['Column']}, "
+                                 f" {row['parity']},  {row['color']},  {row['series']}, Group: {row['Group']}")
+                with col2:
+                    st.markdown("#### Most Frequent Features")
+                    for feature, data in most_frequent_features.items():
+                        events = ", ".join(data['Most Frequent Events'])
+                        st.write(f"{feature.capitalize()}: {events} ({data['Percentage']:.2f}%)")
+
+            # Display feature percentages
+            st.markdown("### 📈 Feature Probabilities")
+            for feature, data in feature_percentages.items():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f"**{feature.capitalize()}**")
+                with col2:
+                    events = ", ".join(data['Most Frequent Events'])
+                    st.markdown(f"Most Frequent: **{events}**")
+                with col3:
+                    st.markdown(f"Probability: **{data['Percentage']:.2f}%**")
+                st.markdown("---")
+            
+
+        
 # Define pages with icons and descriptions
 pages = {
     "pattern_prediction": {
@@ -344,6 +443,12 @@ pages = {
         "name": "Position Analysis",
         "function": page_3,
         "description": "Analyze pattern positions"
+    },
+    "probability_prediction": {
+        "icon": "🔍",
+        "name": "Predicting Probability",
+        "function": page_4,
+        "description": "Analyze features and predict probabilities"
     }
 }
 

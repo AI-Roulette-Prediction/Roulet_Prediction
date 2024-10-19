@@ -36,6 +36,7 @@ GROUP_MAP = {
 }
 
 
+file_path = 'data/Example.xlsx'
 
 
 

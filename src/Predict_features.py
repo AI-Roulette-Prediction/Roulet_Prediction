@@ -19,7 +19,7 @@ def predict_features_from_number(number: int):
         # Predict the column
         for column, numbers in COLUMN_MAP.items():
             if number in numbers:
-                predicted_features['column'] = column
+                predicted_features['Column'] = column
                 break
 
         # Predict odd/even
@@ -37,12 +37,12 @@ def predict_features_from_number(number: int):
         # Predict dozen
         for dozen, numbers in DOZEN_MAP.items():
             if number in numbers:
-                predicted_features['dozen'] = dozen
+                predicted_features['Dozen'] = dozen
                 break
             
         for group, numbers in GROUP_MAP.items():
             if number in numbers:
-                predicted_features['group'] = group
+                predicted_features['Group'] = group
                 break
 
         # Return the predicted features as a dictionary
