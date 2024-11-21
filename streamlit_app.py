@@ -8,6 +8,7 @@ from src.calculator import PatternProbabilityCalculator
 from src.Predict_features import predict_features_from_number
 from src.Strategy2 import find_next_numbers_and_features, standardize_values, calculate_feature_percentages , get_last_n_numbers_and_frequent_features
 from utils.utils import file_path
+import numpy as np
 import logging
 
 # Set up logging
@@ -253,12 +254,8 @@ def page_1():
                                     with cols[idx % 5]:
                                         st.metric(f"Option {idx+1}", str(num))
                         else:
-                            st.success(f"🎯 Predicted Number: {predicted_number}")
-
-
-
-                
-                                
+                            st.success(f"🎯 Predicted Number: {predicted_number}")          
+                                        
       
 
 def page_2():
@@ -298,6 +295,7 @@ def page_2():
                 st.metric(label=feature, value=f"{acc:.2f}%")
         
         st.metric("Overall Accuracy", value=f"{overall_accuracy:.2f}%")
+        
         
 def page_3():
     st.title("📊 Pattern Position Analysis")
@@ -339,6 +337,28 @@ def page_3():
 
 def page_4():
     st.title("🔍 Predicting Probability")
+    
+    # Add custom CSS to make the dataframe more professional
+    st.markdown("""
+    <style>
+    .dataframe {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .dataframe td {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+    .dataframe tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+    .dataframe tr:hover {
+        background-color: #ddd;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     
@@ -360,68 +380,282 @@ def page_4():
             # Find next numbers and features
             last_number, next_numbers_and_features = find_next_numbers_and_features(df, lookback)
             
+            st.write(f"## Last Number : {last_number}")
+            
             # Standardize values
             next_numbers_df = pd.DataFrame(next_numbers_and_features)
             next_numbers_df = standardize_values(next_numbers_df)
             
-            # Calculate probabilities
+             # Calculate probabilities
             feature_percentages = calculate_feature_percentages(next_numbers_df)
             
             # Get the last 5 numbers and their features, and the most frequent feature values
             last_5_numbers, most_frequent_features = get_last_n_numbers_and_frequent_features(df, n=5)
-
-            # Display results
-            st.markdown("### 📊 Analysis Results")
             
-            # Display last number
-            st.metric("Last Number", last_number)
+            # Create a summary row
+            summary_row = {}
+            for feature, data in feature_percentages.items():
+                events = ", ".join(data['Most Frequent Events'])
+                percentage = data['Percentage']
+                summary_row[feature] = f"{events} ({percentage:.2f}%)"
             
-            # # Display predicted features in an expandable section
-            # with st.expander("🎯 Predicted Features for Added Number"):
-            #     col1, col2 = st.columns(2)
-            #     for i, (feature, value) in enumerate(predicted_features.items()):
-            #         with col1 if i % 2 == 0 else col2:
-            #             st.metric(feature.capitalize(), value)
-
-            # Display last 5 numbers and their most frequent features
-
-            
-            # Display next numbers and their features in a table
-            st.markdown("### 🔮 Next Numbers and Features")
+            # Add the summary row to the dataframe
+            summary_df = pd.DataFrame([summary_row])
+            next_numbers_df = pd.concat([next_numbers_df, summary_df], ignore_index=True)
             
             # Reorder columns for better readability
             columns_order = ['Next Number', 'Dozen', 'Column', 'parity', 'color', 'series', 'Group']
             next_numbers_df = next_numbers_df.reindex(columns=columns_order)
             
-            # Display the dataframe
-            st.dataframe(next_numbers_df)
+            # Format the 'Next Number' column to remove decimal places
+            next_numbers_df['Next Number'] = next_numbers_df['Next Number'].apply(lambda x: f"{x:.0f}" if pd.notnull(x) else x)
             
-            with st.expander("📜 Last 5 Numbers and Most Frequent Features"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("#### Last 5 Numbers")
-                    for index, row in last_5_numbers.iterrows():
-                        st.write(f"{row['Number']}, {row['Dozen']},  {row['Column']}, "
-                                 f" {row['parity']},  {row['color']},  {row['series']}, Group: {row['Group']}")
-                with col2:
-                    st.markdown("#### Most Frequent Features")
-                    for feature, data in most_frequent_features.items():
-                        events = ", ".join(data['Most Frequent Events'])
-                        st.write(f"{feature.capitalize()}: {events} ({data['Percentage']:.2f}%)")
+            # Display next numbers and their features in a styled table
+            st.markdown("### 🔮 Next Numbers and Features")
+            
+            # Style the dataframe
+            def style_dataframe(val):
+                if pd.isna(val):
+                    return ''
+                elif isinstance(val, (int, float)):
+                    return 'color: black; font-weight: bold;'
+                else:
+                    return ''
+
+            styled_df = next_numbers_df.style.applymap(style_dataframe)
+            
+            # Highlight the summary row
+            styled_df = styled_df.apply(lambda x: ['background-color: #010a12' for _ in x], axis=1, subset=pd.IndexSlice[-1:, :])
+            
+            # Format numeric columns
+            numeric_columns = next_numbers_df.select_dtypes(include=[np.number]).columns
+            for col in numeric_columns:
+                styled_df = styled_df.format({col: '{:.0f}'})
+            
+            # Display the styled dataframe
+            st.dataframe(styled_df, height=400, use_container_width=True)
 
             # Display feature percentages
-            st.markdown("### 📈 Feature Probabilities")
-            for feature, data in feature_percentages.items():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f"**{feature.capitalize()}**")
-                with col2:
-                    events = ", ".join(data['Most Frequent Events'])
-                    st.markdown(f"Most Frequent: **{events}**")
-                with col3:
-                    st.markdown(f"Probability: **{data['Percentage']:.2f}%**")
-                st.markdown("---")
+            with st.expander("📈 Feature Probabilities"):
+                st.markdown("### 📈 Feature Probabilities")
+                for feature, data in feature_percentages.items():
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.markdown(f"**{feature.capitalize()}**")
+                    with col2:
+                        events = ", ".join(data['Most Frequent Events'])
+                        st.markdown(f"Most Frequent: **{events}**")
+                    with col3:
+                        st.markdown(f"Probability: **{data['Percentage']:.2f}%**")
             
+            # Display Last 5 Numbers and Most Frequent Features
+            with st.expander("📜 Last 5 Numbers and Most Frequent Features"):
+                st.markdown("### Last 5 Numbers")
+                for index, row in last_5_numbers.iterrows():
+                    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+                    with col1:
+                        st.markdown(f"**{row['Number']}**")
+                    with col2:
+                        st.write(row['Dozen'])
+                    with col3:
+                        st.write(row['Column'])
+                    with col4:
+                        st.write(row['parity'])
+                    with col5:
+                        st.write(row['color'])
+                    with col6:
+                        st.write(row['series'])
+                    with col7:
+                        st.write(f"Group: {row['Group']}")
+                
+                st.markdown("---")
+                st.markdown("### Most Frequent Features")
+                for feature, data in most_frequent_features.items():
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.markdown(f"**{feature.capitalize()}**")
+                    with col2:
+                        events = ", ".join(data['Most Frequent Events'])
+                        st.markdown(f"Most Frequent: **{events}**")
+                    with col3:
+                        st.markdown(f"Percentage: **{data['Percentage']:.2f}%**")
+
+
+def page_5():
+    st.title("📊 Combined Strategy Dashboard")
+    
+    # Add custom CSS for better styling
+    st.markdown("""
+    <style>
+    .dataframe {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .dataframe td {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+    .dataframe tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+    .dataframe tr:hover {
+        background-color: #ddd;
+    }
+    .metric-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1E88E5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Input parameters
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        add_number = st.number_input("Add Number", min_value=0, max_value=36, value=0)
+        start_number = st.number_input("Start Number", min_value=0, value=0)
+    with col2:
+        lookback = st.number_input("Lookback", min_value=1, value=100)
+        initial_pattern_length = st.number_input("Initial Pattern Length", min_value=5, value=5)
+    with col3:
+        end_number = st.number_input("End Number", min_value=100, value=100, step=100)
+        end_pattern_length = st.number_input("End Pattern Length", min_value=0, value=0)
+
+    if st.button("🔄 Analyze All Strategies", key="analyze_all_button"):
+        with st.spinner("Analyzing all strategies..."):
+            # Strategy 1: Pattern Prediction
+            predicted_values_st_1 = predict_values(start_number, initial_pattern_length, end_pattern_length or None, end_number or None)
+            
+            # Strategy 2: Next Numbers Analysis
+            df = pd.read_excel(file_path)
+            predicted_features = predict_features_from_number(add_number)
+            data_processor.add_features({'Number': add_number, **predicted_features})
+            last_number, predicted_values_st_2 = find_next_numbers_and_features(df, lookback)
+            
+            # Strategy 3: Feature Analysis
+            last_5_numbers, most_frequent_features = get_last_n_numbers_and_frequent_features(df, n=5)
+            
+            # Display Results in Tabs
+            tab1, tab2, tab3 = st.tabs(["📈 Pattern Prediction", "🎯 Next Numbers", "📊 Feature Analysis"])
+            
+            with tab1:
+                st.subheader("Pattern Prediction Results")
+                if predicted_values_st_1:
+                    pred_values_list = predicted_values_st_1.split()
+                    if len(pred_values_list) >= 7:
+                        predictions = {
+                            "Series": pred_values_list[0],
+                            "Column": pred_values_list[1] + (pred_values_list[2] if len(pred_values_list) > 7 else ""),
+                            "Parity": pred_values_list[3 if len(pred_values_list) > 7 else 2],
+                            "Color": pred_values_list[4 if len(pred_values_list) > 7 else 3],
+                            "Dozen": pred_values_list[5 if len(pred_values_list) > 7 else 4] + pred_values_list[6 if len(pred_values_list) > 7 else 5],
+                            "Group": pred_values_list[7 if len(pred_values_list) > 7 else 6]
+                        }
+                        
+                        cols = st.columns(3)
+                        for i, (key, value) in enumerate(predictions.items()):
+                            with cols[i % 3]:
+                                st.metric(label=key, value=value)
+            
+            with tab2:
+                st.subheader("Next Numbers Analysis")
+                if isinstance(predicted_values_st_2, pd.DataFrame):
+                    # Standardize values
+                    next_numbers_df = standardize_values(predicted_values_st_2)
+                    
+                    # Calculate probabilities
+                    feature_percentages = calculate_feature_percentages(next_numbers_df)
+                    
+                    # Display the dataframe
+                    st.dataframe(next_numbers_df.style.apply(lambda x: ['background-color: #010a12' for _ in x], 
+                                                           axis=1, 
+                                                           subset=pd.IndexSlice[-1:, :]), 
+                               height=400)
+                    
+                    # Feature probabilities in expander
+                    with st.expander("📈 Feature Probabilities", expanded=True):
+                        for feature, data in feature_percentages.items():
+                            col1, col2, col3 = st.columns([2, 1, 1])
+                            with col1:
+                                st.markdown(f"**{feature.capitalize()}**")
+                            with col2:
+                                events = ", ".join(data['Most Frequent Events'])
+                                st.markdown(f"Most Frequent: **{events}**")
+                            with col3:
+                                st.markdown(f"Probability: **{data['Percentage']:.2f}%**")
+            
+            with tab3:
+                st.subheader("Feature Analysis")
+                
+                # Last 5 Numbers
+                st.markdown("### 📜 Last 5 Numbers")
+                for index, row in last_5_numbers.iterrows():
+                    cols = st.columns(7)
+                    with cols[0]:
+                        st.markdown(f"**{row['Number']}**")
+                    with cols[1]:
+                        st.write(row['Dozen'])
+                    with cols[2]:
+                        st.write(row['Column'])
+                    with cols[3]:
+                        st.write(row['parity'])
+                    with cols[4]:
+                        st.write(row['color'])
+                    with cols[5]:
+                        st.write(row['series'])
+                    with cols[6]:
+                        st.write(f"Group: {row['Group']}")
+                
+                # Most Frequent Features
+                st.markdown("### 📊 Most Frequent Features")
+                for feature, data in most_frequent_features.items():
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.markdown(f"**{feature.capitalize()}**")
+                    with col2:
+                        events = ", ".join(data['Most Frequent Events'])
+                        st.markdown(f"Most Frequent: **{events}**")
+                    with col3:
+                        st.markdown(f"Percentage: **{data['Percentage']:.2f}%**")
+                        
+            # Summary Metrics at the bottom
+            st.markdown("---")
+            st.subheader("📈 Combined Insights")
+            summary_cols = st.columns(3)
+            
+            # Pattern Match Rate
+            with summary_cols[0]:
+                if predicted_values_st_1:
+                    st.metric("Pattern Match Rate", 
+                             f"{len(pred_values_list)/7:.0%}",
+                             "Based on Pattern Prediction")
+            
+            # Feature Accuracy
+            with summary_cols[1]:
+                if feature_percentages:
+                    avg_accuracy = np.mean([data['Percentage'] for data in feature_percentages.values()])
+                    st.metric("Average Feature Accuracy", 
+                             f"{avg_accuracy:.1f}%",
+                             "Based on Next Numbers")
+            
+            # Most Consistent Feature
+            with summary_cols[2]:
+                if most_frequent_features:
+                    max_feature = max(most_frequent_features.items(), 
+                                    key=lambda x: x[1]['Percentage'])
+                    st.metric("Most Consistent Feature",
+                             f"{max_feature[0]}",
+                             f"{max_feature[1]['Percentage']:.1f}% consistency")
 
         
 # Define pages with icons and descriptions
@@ -449,6 +683,12 @@ pages = {
         "name": "Predicting Probability",
         "function": page_4,
         "description": "Analyze features and predict probabilities"
+    },
+    "Dashboard": {
+        "icon": "🔮",
+        "name": "Dashboard for all strategies",
+        "function": page_5,
+        "description": "Dashboard for all strategies"
     }
 }
 
